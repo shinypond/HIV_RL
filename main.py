@@ -11,13 +11,15 @@ from lib.utils import dict2namespace, str2bool
 def main(args):
     os.makedirs(args.logdir, exist_ok=True)
     
-    with open(args.config, 'r') as f:
+    if not args.resume:
+        config_path = args.config
+        shutil.copy(args.config, os.path.join(args.logdir, 'config_copy.yml'))
+    else:
+        config_path = os.path.join(args.logdir, 'config_copy.yml')
+
+    with open(config_path, 'r') as f:
         config_dict = yaml.safe_load(f)
     config = dict2namespace(config_dict)
-    try:
-        shutil.copy(args.config, os.path.join(args.logdir, 'config_copy.yml'))
-    except shutil.SameFileError:
-        pass
 
     log_file = os.path.join(args.logdir, f'{args.mode}_log.txt')
     stream_handler = logging.StreamHandler()

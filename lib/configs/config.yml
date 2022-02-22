@@ -1,4 +1,4 @@
-device: 'cuda:3'
+device: 'cuda:0'
 
 dynamics:
     lmbd1: 10000
@@ -27,7 +27,7 @@ dynamics:
     method: 'RK45'
 
 reward:
-    scaler: 1.0e+8 # scaling reward
+    scaler: 1.0e+10 # scaling reward
     Q: 0.1
     R1: 20000
     R2: 20000
@@ -36,10 +36,10 @@ reward:
 action:
     min_a1: 0.0
     max_a1: 0.7
-    interval_a1: 0.7
+    interval_a1: 0.1
     min_a2: 0.0
     max_a2: 0.3
-    interval_a2: 0.3
+    interval_a2: 0.1
 
 model:
     n_layers: 12
