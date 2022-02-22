@@ -14,7 +14,10 @@ def main(args):
     with open(args.config, 'r') as f:
         config_dict = yaml.safe_load(f)
     config = dict2namespace(config_dict)
-    shutil.copy(args.config, os.path.join(args.logdir, 'config_copy.yml'))
+    try:
+        shutil.copy(args.config, os.path.join(args.logdir, 'config_copy.yml'))
+    except shutil.SameFileError:
+        pass
 
     log_file = os.path.join(args.logdir, f'{args.mode}_log.txt')
     stream_handler = logging.StreamHandler()

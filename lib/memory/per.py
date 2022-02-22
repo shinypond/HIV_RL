@@ -22,7 +22,7 @@ class Memory:
         if self.data is None:
             self.data = sample.unsqueeze(0)
         else:
-            self.data = torch.cat([self.data, sample.unsqueeze(0)], dim=0)
+            self.data = torch.cat([self.data.cpu(), sample.unsqueeze(0)], dim=0)
 
     def sample(self, n):
         data_idxs = np.arange(self.data.shape[0])
