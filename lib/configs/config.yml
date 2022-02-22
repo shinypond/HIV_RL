@@ -1,0 +1,72 @@
+device: 'cuda:3'
+
+dynamics:
+    lmbd1: 10000
+    lmbd2: 31.98
+    d1: 0.01
+    d2: 0.01
+    k1: 8.0e-7
+    k2: 1.0e-4
+    f: 0.34
+    delta: 0.7
+    m1: 1.0e-5
+    m2: 1.0e-5
+    N_T: 100
+    c: 13
+    rho1: 1
+    rho2: 1
+    lmbd_E: 1
+    b_E: 0.3
+    d_E: 0.25
+    K_b: 100
+    K_d: 500
+    delta_E: 0.1
+
+    init_state: [1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10]
+
+    method: 'RK45'
+
+reward:
+    scaler: 1.0e+8 # scaling reward
+    Q: 0.1
+    R1: 20000
+    R2: 20000
+    S: 1000
+
+action:
+    min_a1: 0.0
+    max_a1: 0.7
+    interval_a1: 0.7
+    min_a2: 0.0
+    max_a2: 0.3
+    interval_a2: 0.3
+
+model:
+    n_layers: 12
+    nf: 1024
+    normalization: 'layernorm'
+    activation: 'silu'
+
+train:
+    max_episode: 1000000
+    max_step: 600 # (days)
+    batch_size: 5000
+    replay_buffer_size: 100000
+    eps_start: 0.99
+    eps_end: 0.01
+    eps_decay: 1000
+    grad_clip: 10
+    target_update: 20
+    soft_update: 0.01
+    discount: 1
+    lr: 1.0e-4
+    log_freq: 100
+    eval_freq: 10
+    save_freq: 5
+    archive_freq: 100
+
+eval:
+    ckpt_num: 5
+
+
+
