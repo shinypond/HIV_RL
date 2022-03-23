@@ -3,22 +3,23 @@ import argparse
 import torch
 
 
-def load_ckpt(ckpt_dir, info, device, train):
+def load_ckpt(ckpt_dir, info, device, train=True, ckpt_num=None):
     if not os.path.exists(ckpt_dir):
         return info
+    fname = 'ckpt.pt' if ckpt_num is None else f'ckpt_{ckpt_num}.pt'
     loaded_info = torch.load(
-        os.path.join(ckpt_dir, 'ckpt.pt'),
+        os.path.join(ckpt_dir, fname),
         map_location=device
     )
     info['policy_net'].load_state_dict(loaded_info['policy_net'])
     info['policy_net'].train()
+    info['episode'] = loaded_info['episode']
     if train:
         info['target_net'].load_state_dict(loaded_info['target_net'])
         info['target_net'].eval()
         info['optimizer'].load_state_dict(loaded_info['optimizer'])
         info['scheduler'].load_state_dict(loaded_info['scheduler'])
         info['memory'] = loaded_info['memory']
-        info['episode'] = loaded_info['episode']
     return info
 
         

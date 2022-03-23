@@ -13,7 +13,10 @@ def main(args):
     
     if not args.resume:
         config_path = args.config
-        shutil.copy(args.config, os.path.join(args.logdir, 'config_copy.yml'))
+        try:
+            shutil.copy(args.config, os.path.join(args.logdir, 'config_copy.yml'))
+        except shutil.SameFileError:
+            pass
     else:
         config_path = os.path.join(args.logdir, 'config_copy.yml')
 

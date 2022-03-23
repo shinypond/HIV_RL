@@ -20,9 +20,9 @@ class Memory:
         p = self._get_priority(error)
         self.priorities = np.append(self.priorities, p)
         if self.data is None:
-            self.data = sample.unsqueeze(0)
+            self.data = sample.clone()
         else:
-            self.data = torch.cat([self.data.cpu(), sample.unsqueeze(0)], dim=0)
+            self.data = torch.cat([self.data.cpu(), sample.clone()], dim=0)
 
     def sample(self, n):
         data_idxs = np.arange(self.data.shape[0])

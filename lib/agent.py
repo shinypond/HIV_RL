@@ -58,21 +58,30 @@ class AGENT:
         self.action_set = torch.tensor(self.action_set, dtype=torch.float32)
 
     def choose_action(self, state, policy_net, eps=1.0):
+
+        # State shape: (B, 6)
+        B = state.shape[0]
         assert eps >= 0 and eps <= 1
         if np.random.rand(1)[0] < eps:
-            idx = torch.tensor(np.random.randint(len(self.action_set)), dtype=torch.int64)
+            idx = torch.tensor(
+                np.random.randint(len(self.action_set), size=(B)), dtype=torch.int64
+            )
         else:
             with torch.no_grad():
                 policy_net.eval()
                 pred = policy_net(state)
                 policy_net.train()
-            idx = torch.argmax(pred)
+            idx = torch.argmax(pred, dim=1)
+
+        # action, action_idx shape: (B,)
         action = self.action_set[idx]
         action_idx = idx.clone().cpu().type(torch.int64)
         return action, action_idx
 
     def train_Q(self, config, info):
+
         device = config.device
+
         # Sample mini-batch from the memory
         batch, idxs, is_weights = info['memory'].sample(config.train.batch_size)
         _state = batch[:, :6].to(device)
@@ -82,7 +91,7 @@ class AGENT:
 
         # Update priority
         policy_pred = info['policy_net'](_state).gather(1, _action_idx)
-        target_best = torch.max(info['target_net'](_next_state), dim=1)[0].unsqueeze(1)
+        target_best = torch.max(info['target_net'](_next_state), dim=1, keepdim=True).values
         errors = torch.abs(_reward + config.train.discount * target_best - policy_pred).detach().cpu().numpy()
         info['memory'].update(idxs, errors)
 
@@ -144,31 +153,37 @@ class AGENT:
         eps_start = config.train.eps_start
         eps_end = config.train.eps_end
         eps_decay = config.train.eps_decay
+        dyn_batch_size = config.dynamics.batch_size
 
         for episode in range(start_episode, config.train.max_episode):
 
-            state = init_state
+            state = torch.cat([init_state.unsqueeze(0)] * dyn_batch_size, dim=0)
             eps = eps_end + (eps_start - eps_end) * np.exp(-1. * episode / eps_decay)
 
             for t in range(config.train.max_step):
 
                 # Choose and Execute an action
-                action, action_idx = self.choose_action(state.unsqueeze(0).to(device), info['policy_net'], eps)
+                action, action_idx = self.choose_action(state.to(device), info['policy_net'], eps)
                 reward, next_state = self.env.step(state, action)
 
                 # Compute TD error of this < s, a, r, s' >
                 with torch.no_grad():
                     info['policy_net'].eval()
-                    policy_pred = info['policy_net'](state.to(device).unsqueeze(0))[:, action_idx.item()]
-                    target_best = torch.max(info['target_net'](next_state.to(device).unsqueeze(0)))
-                    error = torch.abs(reward + config.train.discount * target_best - policy_pred).cpu().numpy()
+                    policy_pred = info['policy_net'](state.to(device))
+                    policy_pred = policy_pred.gather(1, action_idx.unsqueeze(1).to(device))
+                    target_best = torch.max(info['target_net'](next_state.to(device)), dim=1, keepdim=True).values
+                    error = torch.abs(
+                        reward.unsqueeze(1).to(device) + config.train.discount * target_best - policy_pred
+                    ).cpu().numpy()
                     info['policy_net'].train()
 
                 # Push the sample into the replay memory
                 sample = torch.cat(
-                    [state, action_idx.unsqueeze(0), reward.unsqueeze(0), next_state], dim=0
+                    [state, action_idx.unsqueeze(1), reward.unsqueeze(1), next_state], dim=1
                 )
                 info['memory'].add(error, sample)
+
+                # State <- Next state
                 state = next_state
 
                 loss, max_loss = self.train_Q(config, info)
@@ -188,13 +203,13 @@ class AGENT:
             if info['episode'] % config.train.target_update == 0:
                 info['target_net'].load_state_dict(info['policy_net'].state_dict())
 
-            # Evaluate
-            if info['episode'] % config.train.eval_freq == 0:
-                self.eval(config, logdir, ckpt_num=info['episode'])
-
             # Save checkpoint (save as ckpt.pt - overwritten)
             if info['episode'] % config.train.save_freq == 0 or info['episode'] == config.train.max_episode:
                 save_ckpt(ckpt_dir, info, archive=False)
+
+            # Evaluate
+            if info['episode'] % config.train.eval_freq == 0:
+                self.eval(config, logdir)
 
             # Archive checkpoint (save as ckpt_123.pt)
             if info['episode'] % config.train.archive_freq == 0 or info['episode'] == config.train.max_episode:
@@ -205,26 +220,27 @@ class AGENT:
         policy_net = DQN(config, len(self.action_set)).to(device)
         info = {
             'policy_net': policy_net,
+            'episode': 0,
         }
         ckpt_dir = os.path.join(logdir, 'checkpoints')
-        info = load_ckpt(ckpt_dir, info, device, train=False)
+        info = load_ckpt(ckpt_dir, info, device, train=False, ckpt_num=ckpt_num)
         info['policy_net'].eval()
         init_state = config.dynamics.init_state
         init_state = torch.tensor(init_state).float()
 
-        state = init_state
+        state = init_state.unsqueeze(0)
         states = []
         actions = []
         rewards = []
 
         for t in range(config.train.max_step):
-            best_action_idx = torch.argmax(info['policy_net'](state.to(device))).item()
+            best_action_idx = torch.argmax(info['policy_net'](state.to(device)), dim=1)
             action = self.action_set[best_action_idx]
             # action = torch.tensor([0.0, 0.0])
             reward, next_state = self.env.step(state, action)
 
-            states.append(state.unsqueeze(0))
-            actions.append(action.unsqueeze(0))
+            states.append(state)
+            actions.append(action)
             rewards.append(reward.unsqueeze(0))
 
             state = next_state
@@ -233,8 +249,20 @@ class AGENT:
         actions = torch.cat(actions, dim=0).numpy()
         rewards = torch.cat(rewards, dim=0).numpy()
 
+        cum_rewards = rewards.sum()
+
+        # np.savez(
+        #     './actions.npz',
+        #     action=actions,
+        # )
+        # np.savez(
+        #     './rewards.npz',
+        #     reward=rewards,
+        # )
+
         fig = plt.figure(figsize=(16, 10))
-        plt.title(f'Episode {ckpt_num}')
+        scaler = config.reward.scaler
+        plt.title(f'Episode {info["episode"]} | Cumulative reward {cum_rewards * scaler:.5e}')
         plt.axis('off')
         axis_t = np.arange(0, config.train.max_step)
         legends = ['T1', 'T2', 'T1I', 'T2I', 'V', 'E', 'a1', 'a2', 'reward']
@@ -261,11 +289,7 @@ class AGENT:
 
         evaldir = os.path.join(logdir, 'eval')
         os.makedirs(evaldir, exist_ok=True)
-        if ckpt_num is not None:
-            fig.savefig(os.path.join(evaldir, f'result_{ckpt_num}.png'))
-        else:
-            from datetime import datetime
-            fig.savefig(os.path.join(evaldir, f'{datetime.now()}.png'))
+        fig.savefig(os.path.join(evaldir, f'result_{info["episode"]}.png'))
         plt.close()
 
 

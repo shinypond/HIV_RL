@@ -23,11 +23,12 @@ dynamics:
     delta_E: 0.1
 
     init_state: [1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10]
+    batch_size: 100
 
     method: 'RK45'
 
 reward:
-    scaler: 1.0e+10 # scaling reward
+    scaler: 1.0e+9 # scaling reward
     Q: 0.1
     R1: 20000
     R2: 20000
@@ -36,10 +37,10 @@ reward:
 action:
     min_a1: 0.0
     max_a1: 0.7
-    interval_a1: 0.1
+    interval_a1: 0.7
     min_a2: 0.0
     max_a2: 0.3
-    interval_a2: 0.1
+    interval_a2: 0.3
 
 model:
     n_layers: 12
@@ -51,18 +52,18 @@ train:
     max_episode: 1000000
     max_step: 600 # (days)
     batch_size: 5000
-    replay_buffer_size: 100000
+    replay_buffer_size: 2400000 # 600 (timesteps) x batch x episode
     eps_start: 0.99
     eps_end: 0.01
-    eps_decay: 1000
-    grad_clip: 10
-    target_update: 20
-    soft_update: 0.01
+    eps_decay: 100 # critical
+    grad_clip: 100 # critical
+    target_update: 5
+    soft_update: 0.1
     discount: 1
     lr: 1.0e-4
     log_freq: 100
-    eval_freq: 10
-    save_freq: 5
+    eval_freq: 1
+    save_freq: 1
     archive_freq: 100
 
 eval:
