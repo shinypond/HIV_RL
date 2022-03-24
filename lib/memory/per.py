@@ -4,9 +4,9 @@ import torch
 
 class Memory:
     e = 0.01
-    a = 0.6
+    a = 1.0 # 0.6
     beta = 0.4
-    beta_increment_per_sampling = 0.001
+    # beta_increment_per_sampling = 0.001
 
     def __init__(self, capacity):
         self.capacity = capacity

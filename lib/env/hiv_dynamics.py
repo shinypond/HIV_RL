@@ -28,8 +28,8 @@ class HIV:
             dx[:, 4] = (1 - x[:, 7]) * self.N_T * self.delta * (x[:, 2] + x[:, 3]) - self.c * x[:, 4] - \
                 ((1 - x[:, 6]) * self.rho1 * self.k1 * x[:, 0] + (1 - self.f * x[:, 6]) * self.rho2 * self.k2 * x[:, 1]) * x[:, 4]
             _I = x[:, 2] + x[:, 3]
-            _E_first = self.b_E * _I / (_I + self.K_b + 1e-12) * x[:, 5]
-            _E_second = self.d_E * _I / (_I + self.K_d + 1e-12) * x[:, 5]
+            _E_first = self.b_E * _I / (_I + self.K_b + 1e-16) * x[:, 5]
+            _E_second = self.d_E * _I / (_I + self.K_d + 1e-16) * x[:, 5]
             dx[:, 5] = self.lmbd_E + _E_first - _E_second - self.delta_E * x[:, 5]
             dx[:, 8] = -(self.Q * x[:, 4] + self.R1 * x[:, 6] ** 2 + self.R2 * x[:, 7] ** 2 - self.S * x[:, 5])
             dx = dx.reshape(-1)

@@ -23,7 +23,7 @@ dynamics:
     delta_E: 0.1
 
     init_state: [1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10]
-    batch_size: 100
+    batch_size: 100 
 
     method: 'RK45'
 
@@ -43,27 +43,27 @@ action:
     interval_a2: 0.3
 
 model:
-    n_layers: 12
-    nf: 1024
+    n_layers: 4
+    nf: 512
     normalization: 'layernorm'
     activation: 'silu'
 
 train:
     max_episode: 1000000
     max_step: 600 # (days)
-    batch_size: 5000
-    replay_buffer_size: 2400000 # 600 (timesteps) x batch x episode
+    batch_size: 10000
+    replay_buffer_size: 100000 # 600 (timesteps) x batch x episode
     eps_start: 0.99
     eps_end: 0.01
-    eps_decay: 100 # critical
-    grad_clip: 100 # critical
-    target_update: 5
-    soft_update: 0.1
+    eps_decay: 1000 # critical
+    grad_clip: 10 # critical
+    target_update: 20
+    soft_update: 0.01
     discount: 1
     lr: 1.0e-4
     log_freq: 100
-    eval_freq: 1
-    save_freq: 1
+    eval_freq: 10
+    save_freq: 5
     archive_freq: 100
 
 eval:

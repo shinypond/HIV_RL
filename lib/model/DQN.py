@@ -24,27 +24,55 @@ def _get_activation(name):
     return act
 
 
+class LinearBlock(nn.Module):
+    def __init__(self, config, in_dim, out_dim):
+        super().__init__()
+        normalization = _get_normalization(config.model.normalization)
+        activation = _get_activation(config.model.activation)
+        self.main = nn.Sequential(
+            normalization(in_dim),
+            activation,
+            nn.Linear(in_dim, in_dim),
+            normalization(in_dim),
+            activation,
+            nn.Linear(in_dim, out_dim),
+        )
+
+    def forward(self, x: torch.Tensor, is_residual: bool = False):
+        if is_residual:
+            return self.main(x) + x
+        else:
+            return self.main(x)
+        
+
 class DQN(nn.Module):
-    def __init__(self, config, out_dim):
-        super(DQN, self).__init__()
+    def __init__(self, config, final_dim):
+        super().__init__()
         n_layers = config.model.n_layers
         nf = config.model.nf
 
-        modules = [nn.Linear(6, nf)]
-        for i in range(n_layers - 1):
-            normalization = _get_normalization(config.model.normalization)
-            activation = _get_activation(config.model.activation)
-            modules.append(normalization(nf))
-            modules.append(activation)
-            if i < n_layers - 2:
-                modules.append(nn.Linear(nf, nf))
-            else:
-                modules.append(nn.Linear(nf, out_dim))
+        self.main = nn.ModuleList([nn.Linear(6, nf)]) # 6 : dim of states
 
-        self.main = nn.Sequential(*modules)
+        for i in range(n_layers - 1):
+            if i < n_layers - 2:
+                in_dim = out_dim = nf
+            else:
+                in_dim = nf
+                out_dim = final_dim
+
+            # Append a linear block
+            self.main.append(
+                LinearBlock(config, in_dim, out_dim)
+            )
         
-    def forward(self, x):
-        return self.main(torch.log(x + 1e-10))
+    def forward(self, x: torch.Tensor):
+        out = self.main[0](torch.log(x + 1e-10))
+        for i in range(1, len(self.main)):
+            if i < len(self.main) - 1:
+                out = self.main[i](out, is_residual=True)
+            else:
+                out = self.main[i](out, is_residual=False)
+        return out
 
 
 def init_weights(m):

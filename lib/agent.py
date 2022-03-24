@@ -64,13 +64,14 @@ class AGENT:
         assert eps >= 0 and eps <= 1
         if np.random.rand(1)[0] < eps:
             idx = torch.tensor(
-                np.random.randint(len(self.action_set), size=(B)), dtype=torch.int64
+                np.random.randint(len(self.action_set), size=(B)),
+                dtype=torch.int64,
             )
         else:
+            policy_net.eval()
             with torch.no_grad():
-                policy_net.eval()
                 pred = policy_net(state)
-                policy_net.train()
+            policy_net.train()
             idx = torch.argmax(pred, dim=1)
 
         # action, action_idx shape: (B,)
@@ -234,7 +235,8 @@ class AGENT:
         rewards = []
 
         for t in range(config.train.max_step):
-            best_action_idx = torch.argmax(info['policy_net'](state.to(device)), dim=1)
+            with torch.no_grad():
+                best_action_idx = torch.argmax(info['policy_net'](state.to(device)), dim=1)
             action = self.action_set[best_action_idx]
             # action = torch.tensor([0.0, 0.0])
             reward, next_state = self.env.step(state, action)
