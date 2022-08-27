@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-class Memory:
+class PrioritizedReplayBuffer:
     e = 0.01
     a = 1.0 # 0.6
     beta = 0.4
