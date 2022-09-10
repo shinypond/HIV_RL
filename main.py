@@ -39,7 +39,7 @@ def main(args):
     if args.mode == 'train':
         agent.train(cfg, args.logdir, args.resume)
     elif args.mode == 'eval':
-        agent.eval(cfg, args.logdir, ckpt_num=cfg.eval.ckpt_num)
+        agent.eval(cfg, args.logdir, ckpt_num=args.eval_ckpt)
     else:
         raise ValueError(f'Mode {args.mode} not recognized')
 
@@ -49,6 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='./configs/config.yml')
     parser.add_argument('--mode', type=str, required=True)
     parser.add_argument('--logdir', type=str, required=True)
-    parser.add_argument('--resume', type=str2bool, default=False)
+    parser.add_argument('--resume', action='store_true', default=False)
+    parser.add_argument('--eval-ckpt', type=int, default=None)
     args = parser.parse_args()
     main(args)

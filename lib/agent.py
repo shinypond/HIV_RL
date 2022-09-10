@@ -125,12 +125,12 @@ class AGENT:
         start_episode = info['episode']
 
         log_freq = cfg.train.log_freq
-        init_state = cfg.dynamics.init_state
+        init_state = cfg.train.init_state
         init_state = torch.tensor(init_state).float()
         eps_start = cfg.train.eps_start
         eps_end = cfg.train.eps_end
         eps_decay = cfg.train.eps_decay
-        dyn_batch_size = cfg.dynamics.batch_size
+        dyn_batch_size = cfg.train.dyn_batch_size
 
         for episode in range(start_episode, cfg.train.max_episode):
 
@@ -157,7 +157,7 @@ class AGENT:
                 # Push the sample into the replay memory
                 sample = torch.cat(
                     [state, action_idx.unsqueeze(1), reward.unsqueeze(1), next_state], dim=1
-                )
+                ).cpu()
                 info['memory'].add(error, sample)
 
                 # State <- Next state
@@ -192,6 +192,8 @@ class AGENT:
             if info['episode'] % cfg.train.archive_freq == 0 or info['episode'] == cfg.train.max_episode:
                 save_ckpt(ckpt_dir, info, archive=True)
 
+            torch.cuda.empty_cache()
+
     def eval(self, cfg, logdir, ckpt_num=None):
         device = cfg.device
         policy_net = DQN(cfg, len(self.action_set)).to(device)
@@ -202,7 +204,7 @@ class AGENT:
         ckpt_dir = os.path.join(logdir, 'checkpoints')
         info = load_ckpt(ckpt_dir, info, device, train=False, ckpt_num=ckpt_num)
         info['policy_net'].eval()
-        init_state = cfg.dynamics.init_state
+        init_state = cfg.train.init_state
         init_state = torch.tensor(init_state).float()
 
         state = init_state.unsqueeze(0)
