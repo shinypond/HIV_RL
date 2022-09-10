@@ -9,15 +9,15 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 from .env.hiv_dynamics import HIV
-from .model.DQN import DQN, init_weights
+from .model.DQN import DQN
 from .utils import load_ckpt, save_ckpt
 from .memory.per import PrioritizedReplayBuffer
 
 
 class AGENT:
-    def __init__(self, config):
-        self.make_action_set(config.action)
-        self.env = HIV(config)
+    def __init__(self, cfg):
+        self.make_action_set(cfg.action)
+        self.env = HIV(cfg)
 
     def make_action_set(self, constraint):
         self.action_set = []
@@ -55,12 +55,12 @@ class AGENT:
         action_idx = idx.clone().cpu().type(torch.int64)
         return action, action_idx
 
-    def train_Q(self, config, info):
+    def train_Q(self, cfg, info):
 
-        device = config.device
+        device = cfg.device
 
         # Sample mini-batch from the memory
-        batch, idxs, is_weights = info['memory'].sample(config.train.batch_size)
+        batch, idxs, is_weights = info['memory'].sample(cfg.train.batch_size)
         _state = batch[:, :6].to(device)
         _action_idx = batch[:, [6]].to(device).type(torch.int64)
         _reward = batch[:, [7]].to(device)
@@ -69,11 +69,11 @@ class AGENT:
         # Update priority
         policy_pred = info['policy_net'](_state).gather(1, _action_idx)
         target_best = torch.max(info['target_net'](_next_state), dim=1, keepdim=True).values
-        errors = torch.abs(_reward + config.train.discount * target_best - policy_pred).detach().cpu().numpy()
+        errors = torch.abs(_reward + cfg.train.discount * target_best - policy_pred).detach().cpu().numpy()
         info['memory'].update(idxs, errors)
 
         # Compute loss
-        loss = F.mse_loss(_reward + config.train.discount * target_best, policy_pred)
+        loss = F.mse_loss(_reward + cfg.train.discount * target_best, policy_pred)
         loss = loss * torch.FloatTensor(is_weights).to(device)
         max_loss = loss.max()
         loss = loss.mean()
@@ -81,32 +81,32 @@ class AGENT:
         # Update the Q-network
         info['optimizer'].zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(info['policy_net'].parameters(), config.train.grad_clip)
+        nn.utils.clip_grad_norm_(info['policy_net'].parameters(), cfg.train.grad_clip)
         info['optimizer'].step()
 
         # Update the target Q-network
         for target_param, policy_param in zip(info['target_net'].parameters(), info['policy_net'].parameters()):
-            target_param = (1 - config.train.soft_update) * target_param + config.train.soft_update * policy_param
+            target_param = (1 - cfg.train.soft_update) * target_param + cfg.train.soft_update * policy_param
 
         return loss, max_loss
 
-    def train(self, config, logdir, resume=True):
+    def train(self, cfg, logdir, resume=True):
         tb_dir = os.path.join(logdir, 'tensorboard')
         os.makedirs(tb_dir, exist_ok=True)
         writer = SummaryWriter(tb_dir)
 
-        device = config.device
-        policy_net = DQN(config, len(self.action_set)).to(device)
-        target_net = DQN(config, len(self.action_set)).to(device)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config.train.lr)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.train.max_episode)
+        device = cfg.device
+        policy_net = DQN(cfg, len(self.action_set)).to(device)
+        target_net = DQN(cfg, len(self.action_set)).to(device)
+        optimizer = optim.Adam(policy_net.parameters(), lr=cfg.train.lr)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.max_episode)
 
-        policy_net.apply(init_weights)
         policy_net.train()
         target_net.load_state_dict(policy_net.state_dict())
         target_net.eval()
+        target_net.requires_grad_(False)
 
-        memory = PrioritizedReplayBuffer(config.train.replay_buffer_size)
+        memory = PrioritizedReplayBuffer(cfg.train.replay_buffer_size)
 
         info = {
             'policy_net': policy_net,
@@ -124,20 +124,20 @@ class AGENT:
 
         start_episode = info['episode']
 
-        log_freq = config.train.log_freq
-        init_state = config.dynamics.init_state
+        log_freq = cfg.train.log_freq
+        init_state = cfg.dynamics.init_state
         init_state = torch.tensor(init_state).float()
-        eps_start = config.train.eps_start
-        eps_end = config.train.eps_end
-        eps_decay = config.train.eps_decay
-        dyn_batch_size = config.dynamics.batch_size
+        eps_start = cfg.train.eps_start
+        eps_end = cfg.train.eps_end
+        eps_decay = cfg.train.eps_decay
+        dyn_batch_size = cfg.dynamics.batch_size
 
-        for episode in range(start_episode, config.train.max_episode):
+        for episode in range(start_episode, cfg.train.max_episode):
 
             state = torch.cat([init_state.unsqueeze(0)] * dyn_batch_size, dim=0)
             eps = eps_end + (eps_start - eps_end) * np.exp(-1. * episode / eps_decay)
 
-            for t in range(config.train.max_step):
+            for t in range(cfg.train.max_step):
 
                 # Choose and Execute an action
                 action, action_idx = self.choose_action(state.to(device), info['policy_net'], eps)
@@ -150,7 +150,7 @@ class AGENT:
                     policy_pred = policy_pred.gather(1, action_idx.unsqueeze(1).to(device))
                     target_best = torch.max(info['target_net'](next_state.to(device)), dim=1, keepdim=True).values
                     error = torch.abs(
-                        reward.unsqueeze(1).to(device) + config.train.discount * target_best - policy_pred
+                        reward.unsqueeze(1).to(device) + cfg.train.discount * target_best - policy_pred
                     ).cpu().numpy()
                     info['policy_net'].train()
 
@@ -163,9 +163,9 @@ class AGENT:
                 # State <- Next state
                 state = next_state
 
-                loss, max_loss = self.train_Q(config, info)
+                loss, max_loss = self.train_Q(cfg, info)
 
-                step = episode * config.train.max_step + t + 1
+                step = episode * cfg.train.max_step + t + 1
                 writer.add_scalar('mean loss', loss.item(), step)
                 writer.add_scalar('max loss', max_loss.item(), step)
 
@@ -177,24 +177,24 @@ class AGENT:
             info['scheduler'].step()
 
             # Target update
-            if info['episode'] % config.train.target_update == 0:
+            if info['episode'] % cfg.train.target_update == 0:
                 info['target_net'].load_state_dict(info['policy_net'].state_dict())
 
             # Save checkpoint (save as ckpt.pt - overwritten)
-            if info['episode'] % config.train.save_freq == 0 or info['episode'] == config.train.max_episode:
+            if info['episode'] % cfg.train.save_freq == 0 or info['episode'] == cfg.train.max_episode:
                 save_ckpt(ckpt_dir, info, archive=False)
 
             # Evaluate
-            if info['episode'] % config.train.eval_freq == 0:
-                self.eval(config, logdir)
+            if info['episode'] % cfg.train.eval_freq == 0:
+                self.eval(cfg, logdir)
 
             # Archive checkpoint (save as ckpt_123.pt)
-            if info['episode'] % config.train.archive_freq == 0 or info['episode'] == config.train.max_episode:
+            if info['episode'] % cfg.train.archive_freq == 0 or info['episode'] == cfg.train.max_episode:
                 save_ckpt(ckpt_dir, info, archive=True)
 
-    def eval(self, config, logdir, ckpt_num=None):
-        device = config.device
-        policy_net = DQN(config, len(self.action_set)).to(device)
+    def eval(self, cfg, logdir, ckpt_num=None):
+        device = cfg.device
+        policy_net = DQN(cfg, len(self.action_set)).to(device)
         info = {
             'policy_net': policy_net,
             'episode': 0,
@@ -202,7 +202,7 @@ class AGENT:
         ckpt_dir = os.path.join(logdir, 'checkpoints')
         info = load_ckpt(ckpt_dir, info, device, train=False, ckpt_num=ckpt_num)
         info['policy_net'].eval()
-        init_state = config.dynamics.init_state
+        init_state = cfg.dynamics.init_state
         init_state = torch.tensor(init_state).float()
 
         state = init_state.unsqueeze(0)
@@ -210,7 +210,7 @@ class AGENT:
         actions = []
         rewards = []
 
-        for t in range(config.train.max_step):
+        for t in range(cfg.train.max_step):
             with torch.no_grad():
                 best_action_idx = torch.argmax(info['policy_net'](state.to(device)), dim=1)
             action = self.action_set[best_action_idx]
@@ -239,10 +239,10 @@ class AGENT:
         # )
 
         fig = plt.figure(figsize=(16, 10))
-        scaler = config.reward.scaler
+        scaler = cfg.reward.scaler
         plt.title(f'Episode {info["episode"]} | Cumulative reward {cum_rewards * scaler:.5e}')
         plt.axis('off')
-        axis_t = np.arange(0, config.train.max_step)
+        axis_t = np.arange(0, cfg.train.max_step)
         legends = ['T1', 'T2', 'T1I', 'T2I', 'V', 'E', 'a1', 'a2', 'reward']
 
         # states

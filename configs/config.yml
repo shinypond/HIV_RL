@@ -49,7 +49,7 @@ model:
     activation: 'silu'
 
 train:
-    max_episode: 1000000
+    max_episode: 100000
     max_step: 600 # (days)
     batch_size: 10000
     replay_buffer_size: 100000 # 600 (timesteps) x batch x episode

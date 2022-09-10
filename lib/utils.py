@@ -39,9 +39,9 @@ def save_ckpt(ckpt_dir, info, archive=False):
     torch.save(saved_info, ckpt)
 
 
-def dict2namespace(config):
+def dict2namespace(cfg):
     namespace = argparse.Namespace()
-    for key, value in config.items():
+    for key, value in cfg.items():
         if isinstance(value, dict):
             new_value = dict2namespace(value)
         else:
