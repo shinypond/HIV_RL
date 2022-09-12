@@ -196,7 +196,7 @@ class AGENT:
             if info['episode'] % cfg.train.archive_freq == 0 or info['episode'] == cfg.train.max_episode:
                 save_ckpt(ckpt_dir, info, archive=True)
 
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
 
     def eval(self, cfg, logdir, ckpt_num=None):
         device = cfg.device

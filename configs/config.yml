@@ -1,7 +1,7 @@
 device: 'cuda:0'
 
 reward:
-    scaler: 1.0e+8 # scaling reward
+    scaler: 1.0e+7 # scaling reward
 
 action:
     min_a1: 0.0
@@ -20,11 +20,11 @@ train:
     init_state: [1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10]
     max_episode: 10000
     max_step: 600 # (days)
-    dyn_batch_size: 100
-    batch_size: 2000
-    replay_buffer_size: 2400000 # 600 (timesteps) x 100 (dyn_batch) x 40 (episode)
+    dyn_batch_size: 200
+    batch_size: 10000
+    replay_buffer_size: 3600000 # 600 (timesteps) x 200 (dyn_batch) x 30 (episode)
     eps_start: 0.99
-    eps_end: 0.01
+    eps_end: 0.02
     eps_decay: 1000 # critical
     grad_clip: 10 # critical
     target_update: 20
@@ -33,7 +33,7 @@ train:
     lr: 1.0e-4
     log_freq: 200
     eval_freq: 10
-    save_freq: 1
+    save_freq: 5
     archive_freq: 100
 
 eval:
