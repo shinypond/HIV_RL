@@ -26,11 +26,11 @@ def ode_ftn(t, x, B):
 
 
 class HIV:
-    def __init__(self, config):
-        B = config.train.dyn_batch_size
-        self.scaler = config.reward.scaler
+    def __init__(self, cfg):
+        self.scaler = cfg.reward.scaler
+        self.max_step = cfg.train.max_step
 
-    def step(self, state, action):
+    def step(self, state, action, t):
         B = state.shape[0] # batch size
         x_state = state.clone()
         x_action = action.clone()
@@ -45,6 +45,7 @@ class HIV:
         y = y.reshape(B, -1)
         next_state = y[:, :6] 
         reward = y[:, -1]
+        is_done = torch.Tensor([t == self.max_step - 1]).repeat(reward.shape[0])
 
-        return reward / self.scaler, next_state
+        return reward / self.scaler, next_state, is_done 
 

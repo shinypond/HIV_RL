@@ -3,7 +3,9 @@ import torch.nn as nn
 
 
 def get_norm(name):
-    if name.lower() == 'layernorm':
+    if name.lower() == 'none':
+        norm = nn.Identity
+    elif name.lower() == 'layernorm':
         norm = nn.LayerNorm
     elif name.lower() == 'batchnorm':
         norm = nn.BatchNorm1d
@@ -64,7 +66,7 @@ class DQN(nn.Module):
         out = self.main[0](torch.log(x + 1e-10))
         for i in range(1, len(self.main)):
             if i < len(self.main) - 1:
-                out = self.main[i](out, is_residual=True)
+                out = self.main[i](out, is_residual=False)
             else:
                 out = self.main[i](out, is_residual=False)
         return out

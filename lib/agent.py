@@ -64,16 +64,18 @@ class AGENT:
         _state = batch[:, :6].to(device)
         _action_idx = batch[:, [6]].to(device).type(torch.int64)
         _reward = batch[:, [7]].to(device)
-        _next_state = batch[:, 8:].to(device)
+        _next_state = batch[:, 8:14].to(device)
+        _is_done = batch[:, [14]].to(device)
 
         # Update priority
         policy_pred = info['policy_net'](_state).gather(1, _action_idx)
         target_best = torch.max(info['target_net'](_next_state), dim=1, keepdim=True).values
-        errors = torch.abs(_reward + cfg.train.discount * target_best - policy_pred).detach().cpu().numpy()
-        info['memory'].update(idxs, errors)
+        target_best = (1 - _is_done) * cfg.train.discount * target_best # If is_done = True, target_best = 0
+        error = torch.abs(_reward + target_best - policy_pred).detach().cpu().numpy()
+        info['memory'].update(idxs, error)
 
         # Compute loss
-        loss = F.mse_loss(_reward + cfg.train.discount * target_best, policy_pred)
+        loss = F.mse_loss(_reward + target_best, policy_pred)
         loss = loss * torch.FloatTensor(is_weights).to(device)
         max_loss = loss.max()
         loss = loss.mean()
@@ -99,7 +101,8 @@ class AGENT:
         policy_net = DQN(cfg, len(self.action_set)).to(device)
         target_net = DQN(cfg, len(self.action_set)).to(device)
         optimizer = optim.Adam(policy_net.parameters(), lr=cfg.train.lr)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.max_episode)
+        # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.train.max_episode)
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: max(0.1, 0.8 ** (epoch // 100)))
 
         policy_net.train()
         target_net.load_state_dict(policy_net.state_dict())
@@ -141,7 +144,7 @@ class AGENT:
 
                 # Choose and Execute an action
                 action, action_idx = self.choose_action(state.to(device), info['policy_net'], eps)
-                reward, next_state = self.env.step(state, action)
+                reward, next_state, is_done = self.env.step(state, action, t)
 
                 # Compute TD error of this < s, a, r, s' >
                 with torch.no_grad():
@@ -149,15 +152,16 @@ class AGENT:
                     policy_pred = info['policy_net'](state.to(device))
                     policy_pred = policy_pred.gather(1, action_idx.unsqueeze(1).to(device))
                     target_best = torch.max(info['target_net'](next_state.to(device)), dim=1, keepdim=True).values
+                    target_best = (1 - is_done.unsqueeze(1)).to(device) * cfg.train.discount * target_best # If is_done = True, target_best = 0
                     error = torch.abs(
-                        reward.unsqueeze(1).to(device) + cfg.train.discount * target_best - policy_pred
+                        reward.unsqueeze(1).to(device) + target_best - policy_pred
                     ).cpu().numpy()
                     info['policy_net'].train()
 
                 # Push the sample into the replay memory
                 sample = torch.cat(
-                    [state, action_idx.unsqueeze(1), reward.unsqueeze(1), next_state], dim=1
-                ).cpu()
+                    [state, action_idx.unsqueeze(1), reward.unsqueeze(1), next_state, is_done.unsqueeze(1)], dim=1
+                ).cpu().numpy()
                 info['memory'].add(error, sample)
 
                 # State <- Next state
@@ -217,7 +221,7 @@ class AGENT:
                 best_action_idx = torch.argmax(info['policy_net'](state.to(device)), dim=1)
             action = self.action_set[best_action_idx]
             # action = torch.tensor([0.0, 0.0])
-            reward, next_state = self.env.step(state, action)
+            reward, next_state, _ = self.env.step(state, action, t)
 
             states.append(state)
             actions.append(action)
@@ -263,7 +267,7 @@ class AGENT:
 
         # rewards
         ax = fig.add_subplot(3, 3, 9)
-        ax.plot(axis_t, rewards, label=legends[-1], color='g')
+        ax.plot(axis_t, rewards * scaler, label=legends[-1], color='g')
         ax.legend()
         ax.grid()
 
