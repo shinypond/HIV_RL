@@ -20,7 +20,10 @@ def ode_ftn(t, x, B):
     _E_first = b_E * _I / (_I + K_b + 1e-16) * x[:, 5]
     _E_second = d_E * _I / (_I + K_d + 1e-16) * x[:, 5]
     dx[:, 5] = lmbd_E + _E_first - _E_second - delta_E * x[:, 5]
-    dx[:, 8] = -(Q * x[:, 4] + R1 * x[:, 6] ** 2 + R2 * x[:, 7] ** 2 - S * x[:, 5])
+    # Original
+    # dx[:, 8] = -(Q * x[:, 4] + R1 * x[:, 6] ** 2 + R2 * x[:, 7] ** 2 - S * x[:, 5])
+    # Time-equipped (final weighting function is excluded here)
+    dx[:, 8] = -(R1 * x[:, 6] ** 2 + R2 * x[:, 7] ** 2)
     dx = dx.reshape(-1)
     return dx
 
@@ -45,6 +48,9 @@ class HIV:
         y = y.reshape(B, -1)
         next_state = y[:, :6] 
         reward = y[:, -1]
+        # Time-equipped (final weighting function)
+        if t == self.max_step - 1:
+            reward += -(Q * (y[:, 4] - V_TARGET) ** 2 + S * (y[:, 5] - E_TARGET) ** 2)
         is_done = torch.Tensor([t == self.max_step - 1]).repeat(reward.shape[0])
 
         return reward / self.scaler, next_state, is_done 
