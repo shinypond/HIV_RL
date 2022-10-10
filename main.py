@@ -38,7 +38,7 @@ def main(args):
     # )
     cfg['agent'] = dict(
         memory_size = int(1e6),
-        batch_size = 1024,
+        batch_size = 2048,
         lr = 1e-4,
         l2_reg = 0.,
         grad_clip = 10.,
@@ -46,7 +46,7 @@ def main(args):
         max_epsilon = 1.0,
         min_epsilon = 0.05,
         epsilon_decay = 1 / 2000,
-        hidden_dim = 256,
+        hidden_dim = 512,
         alpha = 0.2,
         beta = 0.6,
         prior_eps = 1e-6,
@@ -75,7 +75,7 @@ def main(args):
         max_episodes = args.max_episodes,
         log_freq = 1,
         test_freq = 1,
-        save_freq = 1,
+        save_freq = 10,
         img_dir = args.img_dir,
     )
 

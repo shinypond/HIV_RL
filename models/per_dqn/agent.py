@@ -280,32 +280,33 @@ class PERDQNAgent:
         actions = np.concatenate(actions, axis=0, dtype=np.float32) # shape (600, 2)
         rewards = np.array(rewards, dtype=np.float32).reshape(-1, 1) # shape (600, 1)
 
-        # Plotting
-        fig = plt.figure(figsize=(16, 10))
-        cum_reward = rewards.sum()
-        plt.title(f'Episode {episode} | Cumulative Reward {cum_reward:.2f}')
-        plt.axis('off')
-        axis_t = np.arange(0, max_steps)
-        legends = ['T1', 'T2', 'T1I', 'T2I', 'V', 'E', 'a1', 'a2', 'reward']
+        # Plotting (only for large E)
+        if states[:, 5].max() > 300:
+            fig = plt.figure(figsize=(16, 10))
+            cum_reward = rewards.sum()
+            plt.title(f'Episode {episode} | Cumulative Reward {cum_reward:.2f}')
+            plt.axis('off')
+            axis_t = np.arange(0, max_steps)
+            legends = ['T1', 'T2', 'T1I', 'T2I', 'V', 'E', 'a1', 'a2', 'reward']
 
-        for i in range(6):
-            ax = fig.add_subplot(3, 3, i+1)
-            ax.plot(axis_t, states[:, i], label=legends[i])
+            for i in range(6):
+                ax = fig.add_subplot(3, 3, i+1)
+                ax.plot(axis_t, states[:, i], label=legends[i])
+                ax.legend()
+                ax.grid()
+
+            for i in range(2):
+                ax = fig.add_subplot(3, 3, i+7)
+                ax.plot(axis_t, actions[:, i], label=legends[i+6], color='r')
+                ax.legend()
+                ax.grid()
+
+            ax = fig.add_subplot(3, 3, 9)
+            ax.plot(axis_t, rewards, label=legends[8], color='g')
             ax.legend()
             ax.grid()
 
-        for i in range(2):
-            ax = fig.add_subplot(3, 3, i+7)
-            ax.plot(axis_t, actions[:, i], label=legends[i+6], color='r')
-            ax.legend()
-            ax.grid()
-
-        ax = fig.add_subplot(3, 3, 9)
-        ax.plot(axis_t, rewards, label=legends[8], color='g')
-        ax.legend()
-        ax.grid()
-
-        fig.savefig(os.path.join(img_dir, f'Epi_{episode}.png'))
+            fig.savefig(os.path.join(img_dir, f'Epi_{episode}.png'))
 
         self.dqn.train()
         self.test_env.close()

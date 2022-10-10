@@ -14,8 +14,6 @@ class Network(nn.Module):
             nn.ReLU(), 
             nn.Linear(nf, nf), 
             nn.ReLU(), 
-            nn.Linear(nf, nf), 
-            nn.ReLU(), 
             nn.Linear(nf, out_dim)
         )
 
