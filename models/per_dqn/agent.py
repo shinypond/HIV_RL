@@ -39,6 +39,8 @@ class PERDQNAgent:
         alpha: float = 0.2,
         beta: float = 0.6,
         prior_eps: float = 1e-6,
+        # Double DQN
+        double_dqn: bool = False,
     ):
         '''Initialization.
         Args:
@@ -52,14 +54,19 @@ class PERDQNAgent:
             batch_size (int): batch size for sampling
             lr (float): learning rate
             l2_reg (float) : L2-regularization (weight decay)
+            grad_clip (float) : gradient clipping
             target_update (int): period for target model's hard update
+            max_epsilon (float): Maximum value of epsilon
+            min_epsilon (float): Minimum value of epsilon
+            epsilon_decay (float): Epsilon decaying rate
 
             hidden_dim (int): hidden dimension in network
-            dropout (float): dropout rate in network
 
             alpha (float): determines how much prioritization is used
             beta (float): determines how much importance sampling is used
             prior_eps (float): guarantees every transition can be sampled
+
+            double_dqn (bool): Activate dqn or not
         '''
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.n
@@ -84,6 +91,9 @@ class PERDQNAgent:
         self.beta = beta
         self.prior_eps = prior_eps
         self.memory = PrioritizedReplayBuffer(obs_dim, memory_size, batch_size, alpha=alpha)
+
+        # Double DQN
+        self.double_dqn = double_dqn
 
         # Networks: DQN, DQN_target
         dqn_config = dict(
@@ -204,6 +214,7 @@ class PERDQNAgent:
 
         for episode in range(self.init_episode, max_episodes+1):
             state = self.env.reset()[0]
+            losses = []
             for step in range(max_steps):
                 action = self.select_action(state)
                 next_state, reward, done = self.step(action)
@@ -216,6 +227,7 @@ class PERDQNAgent:
                 # If training is available:
                 if len(self.memory) >= self.batch_size:
                     loss = self.update_model()
+                    losses.append(loss)
                     self.writer.add_scalar('loss', loss, update_cnt)
                     update_cnt += 1
 
@@ -239,6 +251,7 @@ class PERDQNAgent:
                 self._track_results(
                     episode,
                     datetime.now() - start,
+                    losses=losses,
                     immune_effectors=state[5],
                 )
 
@@ -273,15 +286,16 @@ class PERDQNAgent:
                 actions.append(self.test_env.controls[action].reshape(1, -1))
                 rewards.append(reward)
                 state = next_state
-                if done:
-                    break
+                # if done:
+                #     break
 
         states = np.concatenate(states, axis=0, dtype=np.float32) # shape (600, 6)
         actions = np.concatenate(actions, axis=0, dtype=np.float32) # shape (600, 2)
         rewards = np.array(rewards, dtype=np.float32).reshape(-1, 1) # shape (600, 1)
 
         # Plotting (only for large E)
-        if states[:, 5].max() > 300:
+        max_E = states[:, 5].max()
+        if max_E > 10000:
             fig = plt.figure(figsize=(16, 10))
             cum_reward = rewards.sum()
             plt.title(f'Episode {episode} | Cumulative Reward {cum_reward:.2f}')
@@ -306,7 +320,8 @@ class PERDQNAgent:
             ax.legend()
             ax.grid()
 
-            fig.savefig(os.path.join(img_dir, f'Epi_{episode}.png'))
+            success = '_success' if max_E > 300000 else ''
+            fig.savefig(os.path.join(img_dir, f'Epi_{episode}{success}.png'))
 
         self.dqn.train()
         self.test_env.close()
@@ -321,7 +336,12 @@ class PERDQNAgent:
         done = torch.FloatTensor(samples["done"].reshape(-1, 1)).to(device)
 
         curr_q_value = self.dqn(state).gather(1, action)
-        next_q_value = self.dqn_target(next_state).max(dim=1, keepdim=True)[0].detach()
+        if not self.double_dqn:
+            next_q_value = self.dqn_target(next_state).max(dim=1, keepdim=True)[0].detach()
+        else:
+            next_q_value = self.dqn_target(next_state).gather(
+                1, self.dqn(next_state).argmax(dim=1, keepdim=True)
+            ).detach()
         mask = 1 - done
         target = (reward + next_q_value * mask).to(self.device)
 
@@ -337,10 +357,13 @@ class PERDQNAgent:
         self,
         episodes: int,
         elapsed_time: timedelta,
+        losses: List[float],
         immune_effectors: float,
     ):
         elapsed_time = str(timedelta(seconds=elapsed_time.seconds))
-        logging.info(f'Epi {episodes:>4d} | {elapsed_time} | E {immune_effectors:.2f} | buffer {self.memory.size}')
+        logging.info(
+            f'Epi {episodes:>4d} | {elapsed_time} | E {immune_effectors:.2f} | '\
+            f'Loss {np.array(losses).sum():.3e} | Buffer {self.memory.size}')
 
 
 def _gather_per_buffer_attr(memory: Optional[PrioritizedReplayBuffer]) -> Optional[dict]:

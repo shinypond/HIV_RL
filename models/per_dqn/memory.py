@@ -4,7 +4,7 @@ os.environ['KMP_WARNINGS'] = 'off'
 import warnings
 warnings.filterwarnings('ignore')
 import numpy as np
-from numba import njit, prange
+from numba import njit
 from .segment_tree import SumSegmentTree, MinSegmentTree
 
 
@@ -132,7 +132,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         return _calculate_weights_helper(indices, beta, self.sum_tree, self.min_tree, len(self))
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def _sample_proportional_helper(
     sum_tree: SumSegmentTree,
     size: int,
@@ -142,7 +142,7 @@ def _sample_proportional_helper(
     p_total = sum_tree.sum(0, size - 1)
     segment = p_total / batch_size
     
-    for i in prange(batch_size):
+    for i in range(batch_size):
         a = segment * i
         b = segment * (i + 1)
         upperbound = np.random.uniform(a, b)
@@ -152,7 +152,7 @@ def _sample_proportional_helper(
     return indices
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def _calculate_weights_helper(
     indices: np.ndarray,
     beta: float,
@@ -163,7 +163,7 @@ def _calculate_weights_helper(
 
     weights = np.zeros(len(indices), dtype=np.float32)
 
-    for i in prange(len(indices)):
+    for i in range(len(indices)):
 
         idx = indices[i]
 
@@ -181,7 +181,7 @@ def _calculate_weights_helper(
     return weights
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def _update_priorities_helper(
     indices: np.ndarray,
     priorities: np.ndarray, 
@@ -190,7 +190,7 @@ def _update_priorities_helper(
     alpha: float,
 ) -> None:
 
-    for i in prange(len(indices)):
+    for i in range(len(indices)):
         idx = indices[i]
         priority = priorities[i]
         sum_tree[idx] = priority ** alpha
