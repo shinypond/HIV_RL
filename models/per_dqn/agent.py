@@ -167,7 +167,6 @@ class PERDQNAgent:
             next_state, reward, done, _, _ = self.env.step(action)
             self.transition += [reward, next_state, done]
             self.memory.store(*self.transition)
-        
         else:
             next_state, reward, done, _, _ = self.test_env.step(action)
     

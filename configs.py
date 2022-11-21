@@ -1,3 +1,5 @@
+from envs.hiv_env import MAX_EPISODE_STEPS
+
 cfg = {}
 
 # Agent Configuration
@@ -31,7 +33,7 @@ cfg['perdqn_agent'] = dict(
     lr = 1e-4,
     l2_reg = 0.,
     grad_clip = 10.,
-    target_update = 600 * 10,
+    target_update = MAX_EPISODE_STEPS * 10,
     max_epsilon = 1.0,
     min_epsilon = 0.05,
     epsilon_decay = 1 / 2000,
@@ -39,5 +41,5 @@ cfg['perdqn_agent'] = dict(
     alpha = 0.2,
     beta = 0.6,
     prior_eps = 1e-6,
-    double_dqn = True,
+    double_dqn = False,
 )
