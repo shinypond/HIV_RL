@@ -9,13 +9,21 @@ class Network(nn.Module):
 
         self.layers = nn.Sequential(
             nn.Linear(in_dim, nf), 
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(nf, nf), 
-            nn.ReLU(), 
+            nn.LeakyReLU(),
             nn.Linear(nf, nf), 
-            nn.ReLU(), 
+            nn.LeakyReLU(),
             nn.Linear(nf, out_dim)
         )
+
+        self.init_weights()
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight.data)
+                nn.init.zeros_(m.bias.data)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward method implementation."""

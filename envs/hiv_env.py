@@ -9,8 +9,8 @@ from gym.envs.registration import register
 from .constants import *
 
 
-MAX_DAYS = 1000
-INT_TREATMENT = 5
+MAX_DAYS = 600
+INT_TREATMENT = 1
 MAX_EPISODE_STEPS = MAX_DAYS // INT_TREATMENT
 
 

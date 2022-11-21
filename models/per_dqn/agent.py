@@ -33,6 +33,7 @@ class PERDQNAgent:
         max_epsilon: float = 1.0,
         min_epsilon: float = 0.05,
         epsilon_decay: float = 1 / 2000,
+        discount_factor: float = 1.0,
         # Network parameters
         hidden_dim: int = 256,
         # PER parameters
@@ -59,6 +60,7 @@ class PERDQNAgent:
             max_epsilon (float): Maximum value of epsilon
             min_epsilon (float): Minimum value of epsilon
             epsilon_decay (float): Epsilon decaying rate
+            discount_factor (float): Discounting factor
 
             hidden_dim (int): hidden dimension in network
 
@@ -82,6 +84,7 @@ class PERDQNAgent:
         self.max_epsilon = max_epsilon
         self.min_epsilon = min_epsilon
         self.epsilon_decay = epsilon_decay
+        self.discount_factor = discount_factor
 
         # device: cpu / gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -342,7 +345,7 @@ class PERDQNAgent:
                 1, self.dqn(next_state).argmax(dim=1, keepdim=True)
             ).detach()
         mask = 1 - done
-        target = (reward + next_q_value * mask).to(self.device)
+        target = (reward + self.discount_factor * next_q_value * mask).to(self.device)
 
         elementwise_loss = F.smooth_l1_loss(curr_q_value, target, reduction='none')
 
@@ -362,7 +365,7 @@ class PERDQNAgent:
         elapsed_time = str(timedelta(seconds=elapsed_time.seconds))
         logging.info(
             f'Epi {episodes:>4d} | {elapsed_time} | E {immune_effectors:.2f} | '\
-            f'Loss {np.array(losses).sum():.3e} | Buffer {self.memory.size}')
+            f'Loss {np.array(losses).sum()/self.batch_size:.3e} | Buffer {self.memory.size}')
 
 
 def _gather_per_buffer_attr(memory: Optional[PrioritizedReplayBuffer]) -> Optional[dict]:
