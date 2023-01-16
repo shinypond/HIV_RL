@@ -39,7 +39,8 @@ class HIV_Dynamics(gym.Env):
             self.t_eval = np.array([treatment_days,])
         else:
             # Compute all the intermediate values (ex: t = 0 ~ 5 -> also solve ode for t = 1, 2, 3, 4)
-            self.t_eval = np.array([i for i in range(1, treatment_days+1)])
+            # self.t_eval = np.array([i for i in range(1, treatment_days+1)])
+            self.t_eval = np.array([treatment_days,])
 
         self.action_space = spaces.Discrete(4)
         self.controls = self.make_controls()
@@ -79,8 +80,7 @@ class HIV_Dynamics(gym.Env):
         sol = solve_ivp(_ode_ftn, self.t_interval, x, t_eval=self.t_eval, rtol=1e-6, atol=1e-6, method='RK45')
         y = sol.y[:, -1]
         if self.is_test and len(self.t_eval) > 1:
-            # intermediate_sol = sol.y[:, :-1]
-            intermediate_sol = None
+            intermediate_sol = sol.y[:, :-1]
         else:
             intermediate_sol = None
         assert x.shape == y.shape
