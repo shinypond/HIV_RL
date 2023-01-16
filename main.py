@@ -4,27 +4,25 @@ import argparse
 import logging
 import yaml
 from torch.utils.tensorboard import SummaryWriter
-from envs.hiv_env import make_HIV_env
-from models.rainbow.agent import RainbowDQNAgent
-from models.per_dqn.agent import PERDQNAgent
+from envs.hiv_v1 import make_HIV_env
+from models.dqn.agent import DQNAgent
 from configs import cfg
 
 
 def main(args):
 
     # Define agent
-    env = make_HIV_env()
-    test_env = make_HIV_env()
+    env = make_HIV_env(is_test=False, **cfg['env'])
+    test_env = make_HIV_env(is_test=True, **cfg['env'])
     writer = SummaryWriter(args.tb_dir)
-    if args.model == 'rainbow':
-        _agent = RainbowDQNAgent
-    elif args.model == 'perdqn':
-        _agent = PERDQNAgent
+    if args.model == 'dqn':
+        _agent = DQNAgent
 
     agent = _agent(
         env=env,
         test_env=test_env,
         writer=writer,
+        log_dir=args.log_dir,
         ckpt_dir=args.ckpt_dir,
         load_ckpt=(args.resume) or (args.mode == 'test'),
         **cfg[f'{args.model}_agent'],
@@ -59,8 +57,8 @@ if __name__ == '__main__':
     parser.add_argument('--exp', type=str, required=True)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
-    parser.add_argument('--model', type=str, required=True, choices=['rainbow', 'perdqn'])
-    parser.add_argument('--max-episodes', type=int, default=10000)
+    parser.add_argument('--model', type=str, default='dqn', choices=['dqn'])
+    parser.add_argument('--max-episodes', type=int, default=2000)
     parser.add_argument('--resume', action='store_true', default=False)
 
     args = parser.parse_args()
@@ -78,13 +76,14 @@ if __name__ == '__main__':
     os.makedirs(args.ckpt_dir, exist_ok=True)
     args.img_dir = os.path.join(args.log_dir, 'img')
     os.makedirs(args.img_dir, exist_ok=True)
-    logging.basicConfig(
-        format='%(asctime)s %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(f'{os.path.join(args.log_dir, "train_log.txt")}', mode='w'),
-        ],
-        datefmt='%Y-%m-%d %H:%M:%S',
-        level=logging.INFO,
-    )
+    if args.mode == 'train':
+        logging.basicConfig(
+            format='%(asctime)s %(message)s',
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler(f'{os.path.join(args.log_dir, "train_log.txt")}', mode='w'),
+            ],
+            datefmt='%Y-%m-%d %H:%M:%S',
+            level=logging.INFO,
+        )
     main(args)

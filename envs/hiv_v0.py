@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 import gym
 from gym import spaces
 from gym.envs.registration import register
-from .constants import *
+from .constants_v0 import *
 
 
 MAX_DAYS = 600
@@ -17,7 +17,7 @@ MAX_EPISODE_STEPS = MAX_DAYS // INT_TREATMENT
 def make_HIV_env() -> gym.Env:
     register(
         id='hiv-v0',
-        entry_point='envs.hiv_env:HIV_Dynamics',
+        entry_point='envs.hiv_v0:HIV_Dynamics',
         max_episode_steps=MAX_EPISODE_STEPS,
     )
     hiv_env = gym.make('hiv-v0')
