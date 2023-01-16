@@ -3,9 +3,9 @@ cfg = {}
 
 # Environment Configuration
 cfg['env'] = dict(
-    max_days = 1000,
-    treatment_days = 5,
-    reward_scaler = 1e+5,
+    max_days = 600,
+    treatment_days = 1,
+    reward_scaler = 1e+8,
 )
 MAX_EPISODE_STEPS = cfg['env']['max_days'] // cfg['env']['treatment_days']
 
@@ -17,12 +17,13 @@ cfg['dqn_agent'] = dict(
     lr = 2e-4,
     l2_reg = 0.,
     grad_clip = 1000.,
-    target_update = MAX_EPISODE_STEPS * 5,
+    target_update = MAX_EPISODE_STEPS * 2,
     max_epsilon = 1.0,
     min_epsilon = 0.05,
     epsilon_decay = 1 / 200,
     decay_option = 'logistic',
     discount_factor = 0.99,
+    n_train = 5,
     hidden_dim = 1024,
     per = True, # IMPORTANT
     alpha = 0.2,

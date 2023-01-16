@@ -38,6 +38,7 @@ class DQNAgent:
         epsilon_decay: float = 1 / 200,
         decay_option: str = 'logistic',
         discount_factor: float = 0.99,
+        n_train: int = 1,
         # Network parameters
         hidden_dim: int = 1024,
         # PER parameters
@@ -68,6 +69,7 @@ class DQNAgent:
             epsilon_decay (float): Epsilon decaying rate
             decay_option (str): Epsilon decaying schedule option (`linear`, `logistic`)
             discount_factor (float): Discounting factor
+            n_train (int): Number of training per each step
 
             hidden_dim (int): hidden dimension in network
 
@@ -95,6 +97,7 @@ class DQNAgent:
         self.epsilon_decay = epsilon_decay
         self.decay_option = decay_option
         self.discount_factor = discount_factor
+        self.n_train = n_train
 
         # device: cpu / gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -242,7 +245,8 @@ class DQNAgent:
 
                 # If training is available:
                 if len(self.memory) >= self.batch_size:
-                    loss = self.update_model()
+                    for _ in range(self.n_train):
+                        loss = self.update_model()
                     losses.append(loss)
                     self.writer.add_scalar('loss', loss, update_cnt)
                     update_cnt += 1
