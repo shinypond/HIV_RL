@@ -131,6 +131,10 @@ class DQNAgent:
 
         # Mode: train / test
         self.is_test = False
+        self.max_cum_reward = -1.
+        self.exist_benchmark = False 
+        self.no_drug_states, self.no_drug_actions, self.no_drug_rewards = None, None, None
+        self.full_drug_states, self.full_drug_actions, self.full_drug_rewards = None, None, None
 
         # Record (archive train / test results)
         self.record = [] 
@@ -169,7 +173,7 @@ class DQNAgent:
                 setattr(tree, 'capacity', value['capacity'])
                 setattr(tree, 'tree', value['tree'])
                 
-        logging.info(f'Success: Checkpoint loaded (start from Episode {self.init_episode}!')
+        logging.info(f'Success: Checkpoint loaded (start from Episode {self.init_episode})!')
 
     def select_action(self, state: np.ndarray) -> int:
         '''Select an action from the input state.'''
@@ -304,7 +308,114 @@ class DQNAgent:
         self.env.close()
                 
     def test(self, episode: int, img_dir: str) -> Tuple[int, float, float, float]:
-        '''Test the agent.'''
+        '''Test the agent (computation & plotting)'''
+
+        # Computing state/action/reward sequences
+        if not self.exist_benchmark:
+            self.no_drug_states, self.no_drug_actions, self.no_drug_rewards = self._test('no_drug')
+            self.full_drug_states, self.full_drug_actions, self.full_drug_rewards = self._test('full_drug')
+            self.exist_benchmark = True
+        states, actions, rewards = self._test('policy')
+
+        # Plotting
+        _last_day_1 = get_last_treatment_day(actions[:, 0])
+        _last_day_2 = get_last_treatment_day(actions[:, 1])
+        last_treatment_day = max(_last_day_1, _last_day_2) * (self.test_env.max_days // len(actions))
+
+        max_E = 10 ** (states[:, 5].max())
+        last_E = 10 ** (states[-1, 5])
+        cum_reward = rewards.sum() # Not scaled. Original total discounted reward itself.
+
+        # plot figure only if max_E > 0:
+        # if cum_reward > max(1e+8, self.max_cum_reward):
+        if True:
+
+            # FIGURE 1 (6-states & 2-actions)
+            self.max_cum_reward = cum_reward
+            fig = plt.figure(figsize=(14, 18))
+            plt.axis('off')
+            state_names = [
+                r'$\log_{10}(T_{1}$)', r'$\log_{10}(T_{2})$',
+                r'$\log_{10}(T_{1}^{*})$', r'$\log_{10}(T_{2}^{*})$',
+                r'$\log_{10}(V)$', r'$\log_{10}(E)$',
+            ]
+            action_names = [
+                rf'RTI $\epsilon_{1}$', rf'PI $\epsilon_{2}$',
+            ]
+            axis_t = np.arange(states.shape[0])
+            # axis_t_r = np.arange(rewards.shape[0]) * (states.shape[0] / rewards.shape[0])
+
+            label_fontdict = {
+                'size': 13,
+            }
+
+            for i in range(6):
+                ax = fig.add_subplot(4, 2, i+1)
+                ax.plot(axis_t, states[:, i], label='ours', color='crimson', linewidth=2)
+                ax.plot(axis_t, self.no_drug_states[:, i], label='no drug', color='royalblue', linewidth=2, linestyle='--')
+                ax.plot(axis_t, self.full_drug_states[:, i], label='full drug', color='black', linewidth=2, linestyle='-.')
+                ax.set_xlabel('Days', labelpad=0.8, fontdict=label_fontdict)
+                ax.set_ylabel(state_names[i], labelpad=0.5, fontdict=label_fontdict)
+                if i == 0:
+                    ax.set_ylim(min(4.8, states[:, i].min() - 0.2), 6)
+
+            for i in range(2):
+                ax = fig.add_subplot(4, 2, i+7)
+                if last_treatment_day < 550:
+                    if _last_day_1 >= _last_day_2:
+                        if i == 0:
+                            ax.text(_last_day_1, -0.07, f'Day {_last_day_1}')
+                    else:
+                        if i == 1:
+                            ax.text(_last_day_2, -0.03, f'Day {_last_day_2}')
+                ax.plot(axis_t, actions[:, i], color='forestgreen', linewidth=2)
+                if i == 0:
+                    ax.set_ylim(0.7 * (-0.2), 0.7 * 1.2)
+                    ax.set_yticks([0.0, 0.7])
+                else:
+                    ax.set_ylim(0.3 * (-0.2), 0.3 * 1.2)
+                    ax.set_yticks([0.0, 0.3])
+                ax.set_xlabel('Days', labelpad=0.8, fontdict=label_fontdict)
+                ax.set_ylabel(action_names[i], labelpad=0.5, fontdict=label_fontdict)
+
+            fig.savefig(
+                os.path.join(img_dir, f'Epi{episode}_{last_treatment_day}_{cum_reward:.4e}.png'),
+                bbox_inches='tight',
+                pad_inches=0.2,
+            )
+
+            # FIGURE 2 (V, E phase-plane)
+            fig = plt.figure(figsize=(10, 10))
+            ax = fig.add_subplot(1, 1, 1)
+            ax.plot(states[:, 4], states[:, 5], color='navy', alpha=0.7)
+            for i in range(0, states.shape[0], 50):
+                if i <= last_treatment_day: # After the last treatment, do not draw
+                    ax.scatter(states[i, 4], states[i, 5], color='forestgreen', marker='^', s=30)
+
+            ax.text(states[0, 4] - 0.2, states[0, 5] - 0.2, 'Start', fontdict=label_fontdict)
+
+            ax.scatter(states[-1, 4], states[-1, 5], color='red', marker='*', s=40)
+            ax.text(states[-1, 4], states[-1, 5] + 0.1, 'End', fontdict=label_fontdict)
+
+            ax.set_xlabel(r'$\log_{10}(V)$', labelpad=1, fontdict=label_fontdict)
+            ax.set_ylabel(r'$\log_{10}(E)$', labelpad=1, fontdict=label_fontdict)
+            ax.set_xlim(-0.2, 7.2)
+            ax.set_xticks(np.arange(0, 7+0.1, 0.5))
+            ax.set_ylim(0.8, 6.2)
+            ax.set_yticks(np.arange(1, 6+0.1, 0.5))
+            fig.savefig(
+                os.path.join(img_dir, f'Epi{episode}_VE.png'),
+                bbox_inches='tight',
+                pad_inches=0.2,
+            )
+
+        self.dqn.train()
+        self.test_env.close()
+        return last_treatment_day, max_E, last_E, cum_reward
+
+    def _test(self, mode: str = 'policy') -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        '''Test the agent (dynamics propagation only)'''
+        assert (mode in ['policy', 'no_drug', 'full_drug']) 
         self.is_test = True
         self.dqn.eval()
 
@@ -315,8 +426,13 @@ class DQNAgent:
 
         with torch.no_grad():
             state = self.test_env.reset()[0]
-            for step in range(max_steps):
-                action = self.select_action(state)
+            for _ in range(max_steps):
+                if mode == 'policy':
+                    action = self.select_action(state)
+                elif mode == 'no_drug':
+                    action = 0
+                elif mode == 'full_drug':
+                    action = 3
                 next_state, reward, _, intermediate_sol = self.step(action)
                 _action = self.test_env.controls[action].reshape(1, -1)
                 _reward = np.array([reward,]) * self.test_env.reward_scaler
@@ -334,49 +450,7 @@ class DQNAgent:
         states = np.concatenate(states, axis=0, dtype=np.float32) # shape (N, 6)
         actions = np.concatenate(actions, axis=0, dtype=np.float32) # shape (N, 2)
         rewards = np.concatenate(rewards, axis=0, dtype=np.float32).reshape(-1, 1) # shape (N//T, 1)
-
-        # Plotting
-        last_treatment_day = get_last_treatment_day(actions) * (self.test_env.max_days // len(actions))
-        max_E = 10 ** (states[:, 5].max())
-        last_E = 10 ** (states[-1, 5])
-        cum_reward = rewards.sum() # Not scaled. Original total discounted reward itself.
-        if max_E > 0:
-            fig = plt.figure(figsize=(16, 10))
-            plt.title(
-                f'Episode {episode} | Last Treatment: Day {last_treatment_day} | '\
-                f'E: Max {int(max_E)} Last {int(last_E)} | Total Discounted Reward {cum_reward:.4e}')
-            plt.axis('off')
-            legends = ['T1', 'T2', 'T1I', 'T2I', 'V', 'E', 'a1', 'a2', 'reward/1e6']
-            axis_t = np.arange(states.shape[0])
-            axis_t_r = np.arange(rewards.shape[0]) * (states.shape[0] / rewards.shape[0])
-
-            for i in range(6):
-                ax = fig.add_subplot(3, 3, i+1)
-                ax.plot(axis_t, states[:, i], label=legends[i])
-                ax.legend()
-                ax.grid()
-
-            for i in range(2):
-                ax = fig.add_subplot(3, 3, i+7)
-                ax.plot(axis_t, actions[:, i], label=legends[i+6], color='r')
-                ax.legend()
-                ax.grid()
-
-            ax = fig.add_subplot(3, 3, 9)
-            ax.plot(axis_t_r, rewards/1e6, label=legends[8], color='g')
-            ax.legend()
-            ax.grid()
-
-            success = '_success' if max_E > 300000 else ''
-            fig.savefig(
-                os.path.join(img_dir, f'Epi_{episode}_{last_treatment_day}{success}.png'),
-                bbox_inches='tight',
-                pad_inches=0.2,
-            )
-
-        self.dqn.train()
-        self.test_env.close()
-        return last_treatment_day, max_E, last_E, cum_reward
+        return states, actions, rewards
 
     def _compute_dqn_loss(self, samples: Dict[str, np.ndarray]) -> torch.Tensor:
         '''Return categorical dqn loss.'''
@@ -460,10 +534,10 @@ def sigmoid(x: float) -> float:
 
 
 @njit(cache=True)
-def get_last_treatment_day(actions: np.ndarray) -> int:
+def get_last_treatment_day(action: np.ndarray) -> int:
     '''Find the last treatment day (i.e, nonzero actions) for a given action sequence.'''
-    n = len(actions)
+    n = len(action)
     for i in range(n-1, -1, -1):
-        if actions[i, 0] != 0 or actions[i, 1] != 0:
+        if action[i] != 0:
             return i + 1
     return 0
