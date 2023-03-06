@@ -20,8 +20,8 @@ d_E = 0.25
 K_b = 100
 K_d = 500
 delta_E = 0.1
-# init_state = np.log10(np.array([1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10], dtype=np.float32))
-init_state = np.log10(np.array([163573, 5, 11945, 46, 63919, 24], dtype=np.float32))
+# INIT_STATE = np.log10(np.array([1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10], dtype=np.float32))
+INIT_STATE = np.log10(np.array([163573, 5, 11945, 46, 63919, 24], dtype=np.float32))
 
 Q = 0.1
 R1 = 20000

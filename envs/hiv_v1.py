@@ -27,20 +27,21 @@ class HIV_Dynamics(gym.Env):
         max_days: int,
         treatment_days: int,
         reward_scaler: float,
+        init_state: Optional[np.ndarray] = None,
         is_test: bool = False,
     ) -> None:
         self.max_days = max_days
+        self.treatment_days = treatment_days
         self.max_episode_steps = max_days // treatment_days
         self.reward_scaler = reward_scaler
+        if init_state is not None:
+            self.init_state = init_state
+        else:
+            self.init_state = INIT_STATE
         self.is_test = is_test
 
         self.t_interval = (0, treatment_days)
-        if not is_test:
-            self.t_eval = np.array([treatment_days,])
-        else:
-            # Compute all the intermediate values (ex: t = 0 ~ 5 -> also solve ode for t = 1, 2, 3, 4)
-            # self.t_eval = np.array([i for i in range(1, treatment_days+1)])
-            self.t_eval = np.array([treatment_days,])
+        self.t_eval = np.array([treatment_days,])
 
         self.action_space = spaces.Discrete(4)
         self.controls = self.make_controls()
@@ -54,7 +55,7 @@ class HIV_Dynamics(gym.Env):
 
     def reset(self) -> Tuple[np.ndarray, dict]:
         super().reset()
-        self.state = init_state
+        self.state = self.init_state
         self.time = 0
         return self.state, {}
 

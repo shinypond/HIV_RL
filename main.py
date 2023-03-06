@@ -4,7 +4,6 @@ import argparse
 import logging
 import yaml
 from torch.utils.tensorboard import SummaryWriter
-from envs.hiv_v1 import make_HIV_env
 from models.dqn.agent import DQNAgent
 from configs import cfg
 
@@ -12,19 +11,15 @@ from configs import cfg
 def main(args):
 
     # Define agent
-    env = make_HIV_env(is_test=False, **cfg['env'])
-    test_env = make_HIV_env(is_test=True, **cfg['env'])
     writer = SummaryWriter(args.tb_dir)
     if args.model == 'dqn':
         _agent = DQNAgent
 
     agent = _agent(
-        env=env,
-        test_env=test_env,
-        writer=writer,
         log_dir=args.log_dir,
         ckpt_dir=args.ckpt_dir,
         load_ckpt=(args.resume) or (args.mode == 'test'),
+        writer=writer,
         **cfg[f'{args.model}_agent'],
     )
 

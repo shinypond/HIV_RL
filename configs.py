@@ -2,16 +2,17 @@ cfg = {}
 
 
 # Environment Configuration
-cfg['env'] = dict(
-    max_days = 600,
-    treatment_days = 1,
-    reward_scaler = 1e+8, # IMPORTANT
-)
-MAX_EPISODE_STEPS = cfg['env']['max_days'] // cfg['env']['treatment_days']
+max_days = 600
+treatment_days = 1
+reward_scaler = 1e+8 # IMPORTANT
+MAX_EPISODE_STEPS = max_days // treatment_days 
 
 
 # Agent Configuration
 cfg['dqn_agent'] = dict(
+    max_days = max_days,
+    treatment_days = treatment_days,
+    reward_scaler = reward_scaler,
     memory_size = int(1e6),
     batch_size = 2048,
     lr = 2e-4,

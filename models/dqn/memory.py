@@ -63,6 +63,8 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         size: int, 
         batch_size: int = 32, 
         alpha: float = 0.6,
+        beta: float = 0.4,
+        beta_increment_per_sampling: float = 0.000005,
     ):
         '''Initialization.'''
         assert alpha >= 0
@@ -70,6 +72,8 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         super().__init__(obs_dim, size, batch_size)
         self.max_priority, self.tree_ptr = 1.0, 0
         self.alpha = alpha
+        self.beta = beta
+        self.beta_increment_per_sampling = beta_increment_per_sampling
         
         # capacity must be positive and a power of 2.
         tree_capacity = 1
@@ -93,10 +97,10 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         self.min_tree[self.tree_ptr] = self.max_priority ** self.alpha
         self.tree_ptr = (self.tree_ptr + 1) % self.max_size
 
-    def sample_batch(self, beta: float = 0.4) -> Dict[str, np.ndarray]:
+    def sample_batch(self) -> Dict[str, np.ndarray]:
         '''Sample a batch of experiences.'''
         assert len(self) >= self.batch_size
-        assert beta > 0
+        self.beta = np.min([1., self.beta + self.beta_increment_per_sampling])
         
         indices = self._sample_proportional()
         
@@ -105,7 +109,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         acts = self.acts_buf[indices]
         rews = self.rews_buf[indices]
         done = self.done_buf[indices]
-        weights = self._calculate_weights(indices, beta)
+        weights = self._calculate_weights(indices, self.beta)
         
         return dict(
             obs=obs,
