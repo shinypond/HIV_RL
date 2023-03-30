@@ -33,27 +33,3 @@ cfg['dqn_agent'] = dict(
     double_dqn = True, # IMPORTANT
 )
 
-
-########### UNUSED ###########
-cfg['rainbow_agent'] = dict(
-    # Training parameters
-    memory_size = int(1e6),
-    batch_size = 1024,
-    lr = 1e-4,
-    l2_reg = 0.,
-    target_update = 600 * 10,
-    gamma = 1.,
-    # Network parameters
-    hidden_dim = 512,
-    dropout = 0.0,
-    # PER parameters
-    alpha = 0.2,
-    beta = 0.6,
-    prior_eps = 1e-6,
-    # Categorical DQN parameters
-    v_min = 0.,
-    v_max = 100.,
-    atom_size = 51,
-    # N-step Learning parameters
-    n_step = 1,
-)

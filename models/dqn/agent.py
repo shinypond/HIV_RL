@@ -94,14 +94,16 @@ class DQNAgent:
 
         # (0) Prepare initial
         UNHEALTHY_STEADY_INIT_STATE = np.log10(np.array([163573, 5, 11945, 46, 63919, 24], dtype=np.float32))
-        High_T_Low_V_INIT_STATE = np.log10(np.array([1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10], dtype=np.float32))
-        High_T_HIGH_V_INIT_STATE = np.log10(np.array([1.0e+6, 3198, 1.0e-4, 1.0e-4, 1000000, 10], dtype=np.float32))
+        HIGH_T_LOW_V_INIT_STATE = np.log10(np.array([1.0e+6, 3198, 1.0e-4, 1.0e-4, 1, 10], dtype=np.float32))
+        HIGH_T_HIGH_V_INIT_STATE = np.log10(np.array([1.0e+6, 3198, 1.0e-4, 1.0e-4, 1000000, 10], dtype=np.float32))
+        LOW_T_HIGH_V_INIT_STATE = np.log10(np.array([1000, 10, 10000, 100, 1000000, 10], dtype=np.float32))
 
         # (1) Make Envs
         self.envs = {
             'train': self.make_env(UNHEALTHY_STEADY_INIT_STATE),
-            'HTLV': self.make_env(High_T_Low_V_INIT_STATE),
-            'HTHV': self.make_env(High_T_HIGH_V_INIT_STATE),
+            'HTLV': self.make_env(HIGH_T_LOW_V_INIT_STATE),
+            'HTHV': self.make_env(HIGH_T_HIGH_V_INIT_STATE),
+            'LTHV': self.make_env(LOW_T_HIGH_V_INIT_STATE),
         }
         obs_dim = self.envs['train'].observation_space.shape[0]
         action_dim = self.envs['train'].action_space.n
@@ -557,43 +559,33 @@ class DQNAgent:
             'train': dict(color='navy', alpha=0.8, label='train (initial: unhealthy steady state)'),
             'HTLV': dict(color='forestgreen', alpha=0.8, label='test (initial: early infection with one virus)'),
             'HTHV': dict(color='darkorange', alpha=0.8, label=r'test (initial: early infection with $10^6$ virus)'),
+            'LTHV': dict(color='indianred', alpha=0.8, label=r'test (initial: small T-cells with $10^6$ virus)'),
         }
         for env_name, kwargs in meta_info.items():
             _s = states[env_name]
             x = _s[:, 4] # log(V)
-            y = _s[:, 0] + _s[:, 1] # log(T1) + log(T2)
+            y = _s[:, 0] # log(T1)
             z = _s[:, 5] # log(E) 
             ax.plot(x, y, z, **kwargs)
             ax.scatter(x[0], y[0], z[0], color='black', marker='o', s=70)
 
-        # for i in range(0, states['train'].shape[0], 50):
-        #     if i <= u2h_last_treatment_day: # After the last treatment, do not draw
-        #         ax.scatter(states['train'][i, 4], states['train'][i, 5], color='forestgreen', marker='^', s=40)
-        # for i in range(0, v1_states.shape[0], 50):
-        #     if i <= v1_last_treatment_day: # After the last treatment, do not draw
-        #         ax.scatter(v1_states[i, 4], v1_states[i, 5], color='forestgreen', marker='^', s=40)
-
         # End point (only for training env)
         ax.scatter(
-            states['train'][-1, 4], states['train'][-1, 0] + states['train'][-1, 1], states['train'][-1, 5],
+            states['train'][-1, 4], states['train'][-1, 0], states['train'][-1, 5],
             color='red', marker='*', s=90,
         )
         ax.text(
-            states['train'][-1, 4], states['train'][-1, 0] + states['train'][-1, 1], states['train'][-1, 5] + 0.7,
+            states['train'][-1, 4], states['train'][-1, 0], states['train'][-1, 5] + 0.4,
             'End', fontdict=dict(size=14,),
         )
 
         ax.view_init(15, 45)
         ax.set_xlabel(r'$\log_{10}(V)$', labelpad=2, fontdict=label_fontdict)
         ax.set_xlim(-0.5, 6.5)
-        ax.set_ylabel(r'$\log_{10}(T_{1}) + \log_{10}(T_{2})$', labelpad=2, fontdict=label_fontdict)
+        ax.set_ylabel(r'$\log_{10}(T_{1})$', labelpad=2, fontdict=label_fontdict)
         ax.set_ylim(4, 10)
         ax.set_zlabel(r'$\log_{10}(E)$', labelpad=2, fontdict=label_fontdict)
         ax.set_zlim(0, 6.5)
-        # ax.set_xlim(-0.2, 7.2)
-        # ax.set_xticks(np.arange(0, 7+0.1, 0.5))
-        # ax.set_ylim(0.8, 6.2)
-        # ax.set_yticks(np.arange(1, 6+0.1, 0.5))
         ax.legend(loc='upper right')
         fig.savefig(
             os.path.join(img_dir, f'Epi{episode}_VE.png'),
