@@ -129,5 +129,4 @@ dmypy.json
 .pyre/
 
 logs/
-old_logs/
-old_logs2/
+old_logs*/

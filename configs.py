@@ -2,8 +2,8 @@ cfg = {}
 
 
 # Environment Configuration
-max_days = 600
-treatment_days = 1
+max_days = 1000
+treatment_days = 5
 reward_scaler = 1e+8 # IMPORTANT
 MAX_EPISODE_STEPS = max_days // treatment_days 
 
@@ -26,9 +26,10 @@ cfg['dqn_agent'] = dict(
     discount_factor = 0.99,
     n_train = 1,
     hidden_dim = 1024,
-    per = True, # IMPORTANT
+    per = False, # IMPORTANT
     alpha = 0.2,
     beta = 0.6,
+    beta_increment_per_sampling = 3e-6,
     prior_eps = 1e-6,
     double_dqn = True, # IMPORTANT
 )

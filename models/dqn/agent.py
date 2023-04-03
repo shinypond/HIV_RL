@@ -3,7 +3,6 @@ import os
 import logging
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pandas as pd
 from numba import njit
@@ -16,6 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .memory import ReplayBuffer, PrioritizedReplayBuffer
 from .network import Network 
 from envs.hiv_v1 import make_HIV_env
+from configs import treatment_days
 
 
 class DQNAgent:
@@ -49,6 +49,7 @@ class DQNAgent:
         per: bool = True,
         alpha: float = 0.2,
         beta: float = 0.6,
+        beta_increment_per_sampling: float = 0.000005,
         prior_eps: float = 1e-6,
         # Double DQN
         double_dqn: bool = False,
@@ -82,6 +83,7 @@ class DQNAgent:
             per (bool): If true, PER is activated. Otherwise, the replay buffer of original DQN is used.
             alpha (float): determines how much prioritization is used
             beta (float): determines how much importance sampling is used
+            beta_increment_per_sampling (float): to increase beta per each sampling
             prior_eps (float): guarantees every transition can be sampled
 
             double_dqn (bool): Activate dqn or not
@@ -130,9 +132,8 @@ class DQNAgent:
         # PER memory
         self.per = per
         if per:
-            self.beta = beta
             self.prior_eps = prior_eps
-            self.memory = PrioritizedReplayBuffer(obs_dim, memory_size, batch_size, alpha=alpha)
+            self.memory = PrioritizedReplayBuffer(obs_dim, memory_size, batch_size, alpha, beta, beta_increment_per_sampling)
         else:
             self.memory = ReplayBuffer(obs_dim, memory_size, batch_size)
 
@@ -239,7 +240,7 @@ class DQNAgent:
         '''Update the model by gradient descent.'''
         if self.per:
             # PER needs beta to calculate weights
-            samples = self.memory.sample_batch(self.beta)
+            samples = self.memory.sample_batch()
             weights = torch.FloatTensor(samples["weights"].reshape(-1, 1)).to(self.device)
             indices = samples["indices"]
         else:
@@ -277,16 +278,12 @@ class DQNAgent:
         for episode in range(self.init_episode, max_episodes+1):
             state = self.envs['train'].reset()[0]
             losses = []
-            for step in range(max_steps):
+            for _ in range(max_steps):
                 action = self.select_action(state)
                 next_state, reward, done, _ = self.step(self.envs['train'], action)
                 transition = [state, action, reward, next_state, done]
                 self.memory.store(*transition)
                 state = next_state
-
-                # PER
-                fraction = min(step / max_steps, 1.0)
-                self.beta = self.beta + fraction * (1.0 - self.beta)
 
                 # If training is available:
                 if len(self.memory) >= self.batch_size:
@@ -338,6 +335,7 @@ class DQNAgent:
                         train_loss = avg_step_train_loss,
                         max_E = max_E,
                         last_E = last_E,
+                        cum_reward = cum_reward,
                     )
 
             # Save
@@ -356,7 +354,8 @@ class DQNAgent:
         actions = {'train': _actions}
         rewards = {'train': _rewards}
 
-        cum_reward = rewards['train'].sum() # Original total discounted reward
+        # cum_reward = rewards['train'].sum() # Original total reward
+        cum_reward = discounted_sum(rewards['train'], self.discount_factor) # total discounted reward
         if cum_reward > max(1e+0, self.max_cum_reward):
 
             # Compute state/action/reward sequence for other envs, too
@@ -466,10 +465,11 @@ class DQNAgent:
         train_loss: float,
         max_E: float,
         last_E: float,
+        cum_reward: float,
     ):
         elapsed_time = str(timedelta(seconds=elapsed_time.seconds))
         logging.info(
-            f'Epi {episodes:>4d} | {elapsed_time} | MaxE {max_E:8.1f} | LastE {last_E:8.1f} | '\
+            f'Epi {episodes:>4d} | {elapsed_time} | LastE {last_E:8.1f} | CumR {cum_reward:.3e} | '\
             f'Loss (Train) {train_loss:.2e} | Buffer {self.memory.size}')
 
     def _save_record_df(self):
@@ -498,7 +498,7 @@ class DQNAgent:
         action_names = [
             rf'RTI $\epsilon_{1}$', rf'PI $\epsilon_{2}$',
         ]
-        axis_t = np.arange(policy_states.shape[0])
+        axis_t = np.arange(policy_states.shape[0]) * treatment_days
         label_fontdict = {
             'size': 13,
         }
@@ -521,11 +521,12 @@ class DQNAgent:
             if last_treatment_day < 550:
                 if last_a1_day >= last_a2_day:
                     if i == 0:
-                        ax.text(last_a1_day, -0.07, f'Day {last_a1_day}')
+                        ax.text(last_a1_day * treatment_days, -0.07, f'Day {last_a1_day * treatment_days}')
                 else:
                     if i == 1:
-                        ax.text(last_a2_day, -0.03, f'Day {last_a2_day}')
-            ax.plot(axis_t, policy_actions[:, i], color='forestgreen', linewidth=2)
+                        ax.text(last_a2_day * treatment_days, -0.03, f'Day {last_a2_day * treatment_days}')
+            _a = np.repeat(policy_actions[:, i], treatment_days, axis=0)
+            ax.plot(np.arange(policy_states.shape[0] * treatment_days), _a, color='forestgreen', linewidth=2)
             if i == 0:
                 ax.set_ylim(0.7 * (-0.2), 0.7 * 1.2)
                 ax.set_yticks([0.0, 0.7])
@@ -561,18 +562,20 @@ class DQNAgent:
             'HTHV': dict(color='darkorange', alpha=0.8, label=r'test (initial: early infection with $10^6$ virus)'),
             'LTHV': dict(color='indianred', alpha=0.8, label=r'test (initial: small T-cells with $10^6$ virus)'),
         }
-        for env_name, kwargs in meta_info.items():
+        init_labels = ['A', 'B', 'C', 'D']
+        for i, (env_name, kwargs) in enumerate(meta_info.items()):
             _s = states[env_name]
             x = _s[:, 4] # log(V)
             y = _s[:, 0] # log(T1)
             z = _s[:, 5] # log(E) 
             ax.plot(x, y, z, **kwargs)
             ax.scatter(x[0], y[0], z[0], color='black', marker='o', s=70)
+            ax.text(x[0], y[0], z[0] - 0.4, init_labels[i], fontdict=dict(size=13,))
 
         # End point (only for training env)
         ax.scatter(
             states['train'][-1, 4], states['train'][-1, 0], states['train'][-1, 5],
-            color='red', marker='*', s=90,
+            color='red', marker='*', s=120,
         )
         ax.text(
             states['train'][-1, 4], states['train'][-1, 0], states['train'][-1, 5] + 0.4,
@@ -583,7 +586,7 @@ class DQNAgent:
         ax.set_xlabel(r'$\log_{10}(V)$', labelpad=2, fontdict=label_fontdict)
         ax.set_xlim(-0.5, 6.5)
         ax.set_ylabel(r'$\log_{10}(T_{1})$', labelpad=2, fontdict=label_fontdict)
-        ax.set_ylim(4, 10)
+        ax.set_ylim(3, 7)
         ax.set_zlabel(r'$\log_{10}(E)$', labelpad=2, fontdict=label_fontdict)
         ax.set_zlim(0, 6.5)
         ax.legend(loc='upper right')
@@ -638,3 +641,13 @@ def get_last_treatment_day(action: np.ndarray) -> int:
         if action[i] != 0:
             return i + 1
     return 0
+
+
+@njit(cache=True)
+def discounted_sum(rewards: np.ndarray, discount_factor: float = 0.99) -> float:
+    _sum = 0.
+    _factor = 1.
+    for r in rewards[:, 0]:
+        _sum += r * _factor
+        _factor *= discount_factor 
+    return _sum
