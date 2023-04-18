@@ -53,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
     parser.add_argument('--model', type=str, default='dqn', choices=['dqn'])
-    parser.add_argument('--max-episodes', type=int, default=2000)
+    parser.add_argument('--max-episodes', type=int, default=3000)
     parser.add_argument('--resume', action='store_true', default=False)
 
     args = parser.parse_args()

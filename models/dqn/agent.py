@@ -355,7 +355,7 @@ class DQNAgent:
         rewards = {'train': _rewards}
 
         # cum_reward = rewards['train'].sum() # Original total reward
-        cum_reward = discounted_sum(rewards['train'], self.discount_factor) # total discounted reward
+        cum_reward = discounted_sum(rewards['train'], 0.99) # total discounted reward
         if cum_reward > max(1e+0, self.max_cum_reward):
 
             # Compute state/action/reward sequence for other envs, too
@@ -503,21 +503,11 @@ class DQNAgent:
             'size': 13,
         }
 
-        for i in range(6):
-            ax = fig.add_subplot(4, 2, i+1)
-            ax.plot(axis_t, policy_states[:, i], label='ours', color='crimson', linewidth=2)
-            ax.plot(axis_t, no_drug_states[:, i], label='no drug', color='royalblue', linewidth=2, linestyle='--')
-            ax.plot(axis_t, full_drug_states[:, i], label='full drug', color='black', linewidth=2, linestyle='-.')
-            ax.set_xlabel('Days', labelpad=0.8, fontdict=label_fontdict)
-            ax.set_ylabel(state_names[i], labelpad=0.5, fontdict=label_fontdict)
-            if i == 0:
-                ax.set_ylim(min(4.8, policy_states[:, i].min() - 0.2), 6)
-
         last_a1_day = get_last_treatment_day(policy_actions[:, 0])
         last_a2_day = get_last_treatment_day(policy_actions[:, 1])
         last_treatment_day = max(last_a1_day, last_a2_day) * (self.max_days // len(policy_actions))
         for i in range(2):
-            ax = fig.add_subplot(4, 2, i+7)
+            ax = fig.add_subplot(4, 2, i+1)
             if last_treatment_day < 550:
                 if last_a1_day >= last_a2_day:
                     if i == 0:
@@ -535,6 +525,16 @@ class DQNAgent:
                 ax.set_yticks([0.0, 0.3])
             ax.set_xlabel('Days', labelpad=0.8, fontdict=label_fontdict)
             ax.set_ylabel(action_names[i], labelpad=0.5, fontdict=label_fontdict)
+
+        for i in range(6):
+            ax = fig.add_subplot(4, 2, i+3)
+            ax.plot(axis_t, policy_states[:, i], label='ours', color='crimson', linewidth=2)
+            ax.plot(axis_t, no_drug_states[:, i], label='no drug', color='royalblue', linewidth=2, linestyle='--')
+            ax.plot(axis_t, full_drug_states[:, i], label='full drug', color='black', linewidth=2, linestyle='-.')
+            ax.set_xlabel('Days', labelpad=0.8, fontdict=label_fontdict)
+            ax.set_ylabel(state_names[i], labelpad=0.5, fontdict=label_fontdict)
+            if i == 0:
+                ax.set_ylim(min(4.8, policy_states[:, i].min() - 0.2), 6)
 
         fig.savefig(
             os.path.join(img_dir, f'Epi{episode}_{env_name}_{last_treatment_day}.png'),
@@ -589,7 +589,7 @@ class DQNAgent:
         ax.set_ylim(3, 7)
         ax.set_zlabel(r'$\log_{10}(E)$', labelpad=2, fontdict=label_fontdict)
         ax.set_zlim(0, 6.5)
-        ax.legend(loc='upper right')
+        # ax.legend(loc='upper right')
         fig.savefig(
             os.path.join(img_dir, f'Epi{episode}_VE.png'),
             bbox_inches='tight',
